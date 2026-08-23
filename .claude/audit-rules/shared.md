@@ -42,7 +42,8 @@
 
 ## Project stack taxonomy (context)
 
-- `dotnet` — .NET 9 worker. Quartz 3.19, Quartz MongoDB job store 3.1, MongoDB driver 3.11.
+- `dotnet` — .NET 9 worker. Quartz 3.19.1, `cotique.Quartz.Spi.MongoDbJobStore` 2.2.0 as the
+  job store, MongoDB driver 3.11.
 
 A TypeScript dashboard is planned and deliberately absent. When its first file lands,
 `check.sh --layer` must fail on the missing `ts.md`. That failure is a test of the setup — do
@@ -62,9 +63,10 @@ port collision but a data collision: the database is dedicated to this project a
 it cannot be mistaken for anything else on that instance, and the collection prefix keeps the
 job store's collections apart inside it.
 
-**CI has no Mongo.** It comes from a service container there. That asymmetry is the point to
-remember: a connection string that works on a laptop says nothing about CI, and the two are
-configured separately.
+**CI has no Mongo, and never will.** Not a service container either: the workflow runs
+`--filter "Category!=Integration"` and nothing that needs a database. That asymmetry is the
+point to remember: a connection string that works on a laptop says nothing about CI, because
+CI never opens one.
 
 The Jira double runs from `docker-compose.yml` in both places.
 

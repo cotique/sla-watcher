@@ -3,7 +3,7 @@ using System.Globalization;
 
 /// <summary>
 /// The key is what makes a retry collide instead of adding a second row, so what is worth
-/// testing is not that it produces a string — it is that two attempts at one slot cannot
+/// testing is not that it produces a string. It is that two attempts at one slot cannot
 /// disagree about it, whatever machine they run on.
 /// </summary>
 public class SlotKeyTests

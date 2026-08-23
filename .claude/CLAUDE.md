@@ -13,9 +13,12 @@ status **in the reviewer's working hours**, and raises an escalation when one le
 
 - `src/SlaWatcher/` — .NET 9 worker. Quartz 3.19.1 with `cotique.Quartz.Spi.MongoDbJobStore`
   2.2.0 as the job store, driver 3.11.
-- `tests/` — xUnit. Integration tests take the compose services.
-- `tools/jira-double/` — the local Jira stand-in: the two endpoints the worker calls, plus a
-  control endpoint that makes them fail on demand.
+- `tests/SlaWatcher.Tests/` — xUnit. Integration tests carry
+  `[Trait("Category", "Integration")]` and run against the locally installed Mongo on 27117,
+  which is where the bench runs too; CI never sees them.
+- `tools/jira-double/` — **planned, not written yet.** The local Jira stand-in: the two
+  endpoints the worker calls, plus a control endpoint that makes them fail on demand. Nothing
+  reads Jira yet, so there is nothing for it to stand in for.
 
 A TypeScript dashboard is planned and deliberately absent. Its first file must make
 `check.sh --layer` fail on the missing `ts.md` addon — that failure is a test of the setup.

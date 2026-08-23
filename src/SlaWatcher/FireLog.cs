@@ -5,9 +5,9 @@ using MongoDB.Driver;
 /// <summary>
 /// One document per executed slot, keyed by the slot.
 ///
-/// Not one per attempt. A write that reports failure may still have been applied — measured
-/// on 2026-08-23, a thawed pod's insert threw <c>SocketException</c> while the document sat
-/// in the collection — so a retry has to collide rather than add a second row. An identifier
+/// Not one per attempt. A write that reports failure may still have been applied , measured
+/// on 2026-08-23 when a thawed pod's insert threw <c>SocketException</c> while the document sat
+/// in the collection, so a retry has to collide rather than add a second row. An identifier
 /// generated per attempt collides with nothing.
 ///
 /// The key is the primary key, so uniqueness is enforced by the store itself and needs no
