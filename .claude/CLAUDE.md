@@ -11,7 +11,8 @@ status **in the reviewer's working hours**, and raises an escalation when one le
 
 **Internal project. Single git repository**, one solution, no subprojects.
 
-- `src/SlaWatcher/` — .NET 9 worker. Quartz 3.19 with the MongoDB job store 3.1, driver 3.11.
+- `src/SlaWatcher/` — .NET 9 worker. Quartz 3.19.1 with `cotique.Quartz.Spi.MongoDbJobStore`
+  2.2.0 as the job store, driver 3.11.
 - `tests/` — xUnit. Integration tests take the compose services.
 - `tools/jira-double/` — the local Jira stand-in: the two endpoints the worker calls, plus a
   control endpoint that makes them fail on demand.

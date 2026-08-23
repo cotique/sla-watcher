@@ -12,7 +12,8 @@ tags: [quartz, mongodb, clustering, failure-modes]
 Run on 2026-08-23 against `cotique.Quartz.Spi.MongoDbJobStore` **2.1.0-rc.1**, Quartz 3.19.1,
 MongoDB 8.2.12, two containers on one database.
 
-> **This describes 2.1.0-rc.1 and is no longer current.** From `2.2.0-rc.1` the store keeps a
+> **This describes 2.1.0-rc.1 and is no longer current.** From `2.2.0` — first in `2.2.0-rc.1`,
+> which is what the measurement below was taken on — the store keeps a
 > check-in and reclaims the work of an instance that stops answering. Re-measured on the same
 > bench after upgrading: kill at 16:14:25, the slot under execution lost, and the next slot
 > fired on time on the surviving pod with no restart. The permanent stop below became a
