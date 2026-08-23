@@ -1,0 +1,50 @@
+# build
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+
+# Visual Studio
+.vs/
+*.user
+*.rsuser
+*.suo
+*.userosscache
+*.sln.docstates
+
+# test and coverage output
+TestResults/
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+
+# logs from a failed build
+msbuild.log
+msbuild.err
+msbuild.wrn
+
+# local config and secrets
+.env
+
+# Run profiles are where a connection string with a token ends up, because it is the
+# fastest way to make F5 work. Same treatment as .env: the real file stays out, and a
+# launchSettings.example.json carries the variable names when one is needed.
+# User secrets live in %APPDATA%\Microsoft\UserSecrets and never reach the tree, which is
+# why UserSecretsId in the csproj is safe to commit.
+Properties/launchSettings.json
+**/Properties/launchSettings.json
+
+# generated
+graphify-out/
+
+# left by the installer
+*.bak-*
+
+# per-developer Claude settings
+.claude/settings.local.json
+
+# written by the session hook, one file per machine
+.claude/session-state.json

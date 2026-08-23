@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "kb": {
+      "command": ".claude/kb/mcp-router.sh",
+      "args": []
+    }
+  }
+}

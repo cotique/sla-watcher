@@ -1,0 +1,6 @@
+* text=auto
+
+# Shell scripts must keep LF. With CRLF the shebang line becomes
+# "#!/usr/bin/env bash\r" and every one of them dies with "bad interpreter"
+# on Linux and in CI, which reads as a broken script rather than a line ending.
+*.sh text eol=lf
