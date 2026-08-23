@@ -29,7 +29,7 @@ Loaded when the change touches `**/*.cs`, `*.csproj` or `*.sln`.
   gap and not a stop.** A pod killed mid-execution leaves a `firedTriggers` document in state
   `Executing` and the store holds the trigger `Blocked` against it. On `2.1.0-rc.1` nothing
   ever reclaimed that: measured 2026-08-23, the live pod sat idle for four and a half minutes
-  and would have stayed there until someone restarted something. From `2.2.0-rc.1` the store
+  and would have stayed there until someone restarted something. From `2.2.0` the store
   keeps a check-in and reclaims the work of an instance that stops answering: measured on the
   same bench, kill at 16:14:25, the slot being executed lost, and the next slot fired on time
   on the surviving pod with no restart. **One slot, not the schedule.**
