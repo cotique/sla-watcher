@@ -18,6 +18,9 @@ public sealed class FireLog
 {
     private const int DuplicateKey = 11000;
 
+    /// <summary>Stands in for the slot when a trigger fired outside its schedule.</summary>
+    private const string Unscheduled = "unscheduled";
+
     private readonly IMongoCollection<BsonDocument> _fires;
 
     public FireLog(string connectionString)
@@ -25,6 +28,20 @@ public sealed class FireLog
         var url = MongoUrl.Create(connectionString);
         var database = new MongoClient(url).GetDatabase(url.DatabaseName);
         _fires = database.GetCollection<BsonDocument>("fires");
+    }
+
+    /// <summary>
+    /// The key two attempts at one slot have to agree on.
+    ///
+    /// Derived from the trigger and the scheduled instant, never from the attempt. The instant
+    /// is taken in UTC, so the same slot keys identically on machines in different zones, and
+    /// formatted round-trip, because a key that depends on the current culture is not
+    /// deterministic across machines either.
+    /// </summary>
+    public static string SlotKey(string triggerKey, DateTimeOffset? scheduledFireTimeUtc)
+    {
+        var slot = scheduledFireTimeUtc?.UtcDateTime;
+        return $"{triggerKey}:{slot?.ToString("O") ?? Unscheduled}";
     }
 
     /// <returns>
@@ -39,11 +56,8 @@ public sealed class FireLog
         string fireInstanceId,
         CancellationToken cancellationToken)
     {
-        // Derived from the slot and the trigger, so two attempts at the same slot produce the
-        // same key. Round-trip format, because a key that depends on the current culture is
-        // not deterministic across machines.
         var slot = scheduledFireTimeUtc?.UtcDateTime;
-        var id = $"{triggerKey}:{slot?.ToString("O") ?? "unscheduled"}";
+        var id = SlotKey(triggerKey, scheduledFireTimeUtc);
 
         var document = new BsonDocument
         {
