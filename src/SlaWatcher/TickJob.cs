@@ -43,7 +43,8 @@ public sealed class TickJob : IJob
         {
             // Deliberate, and only ever set in a test run: keeps the execution open so the
             // process can be killed while it holds whatever the store is holding.
-            _logger.LogInformation("Holding for {WorkSeconds}s", _options.WorkSeconds);
+            _logger.LogInformation("Tick {FireInstanceId} holding for {WorkSeconds}s",
+                context.FireInstanceId, _options.WorkSeconds);
             await Task.Delay(TimeSpan.FromSeconds(_options.WorkSeconds), context.CancellationToken);
         }
 
@@ -52,7 +53,8 @@ public sealed class TickJob : IJob
             // Native, and written to page by page. Anything managed would be refused by the
             // runtime as OutOfMemoryException before the cgroup ever noticed; the point here
             // is to be killed, not to be told no.
-            _logger.LogInformation("Taking {AllocateMb}MB of native memory", _options.AllocateMb);
+            _logger.LogInformation("Tick {FireInstanceId} taking {AllocateMb}MB of native memory",
+                context.FireInstanceId, _options.AllocateMb);
             for (var block = 0; block < _options.AllocateMb; block++)
             {
                 var memory = Marshal.AllocHGlobal(1024 * 1024);
