@@ -8,17 +8,14 @@ using SlaWatcher;
 
 var builder = Host.CreateApplicationBuilder(args);
 
-builder.Services
-    .AddOptions<SchedulerOptions>()
-    .Bind(builder.Configuration.GetSection(SchedulerOptions.SectionName))
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
+// Read and validated before anything below takes a value out of it. The Quartz properties
+// are plain strings assembled here, at build time, so this is the last point at which a
+// missing setting can still be reported as a missing setting.
+var options = SchedulerOptions.ReadAndValidate(builder.Configuration);
 
-// Read once, here: the Quartz properties below are plain strings and cannot go through
-// the options monitor. Validation has already run by the time this executes.
-var options = builder.Configuration
-    .GetSection(SchedulerOptions.SectionName)
-    .Get<SchedulerOptions>() ?? new SchedulerOptions();
+// The same instance the job and the installer resolve. One object, one validation, and no
+// second read of the raw section to drift away from it.
+builder.Services.AddSingleton(Options.Create(options));
 
 builder.Services.AddQuartz(q =>
 {
@@ -82,7 +79,5 @@ if (options.RunSeconds > 0)
     var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
     _ = Task.Delay(TimeSpan.FromSeconds(options.RunSeconds)).ContinueWith(_ => lifetime.StopApplication());
 }
-
-host.Services.GetRequiredService<IOptions<SchedulerOptions>>();
 
 host.Run();
