@@ -153,12 +153,47 @@ Reclaimed instance pod-b: 0 released, 0 rescheduled for recovery, 1 abandoned.
 Slots either side of the kill at 16:14:25: 16:13 fired, **16:14 missing**, 16:15 fired. The
 outage is one slot.
 
+## A network cut is the one the process is told about
+
+`docker network disconnect` on the pod that was executing, 2.2.0, same bench. Measured
+2026-08-26. The process stays alive, keeps its CPU, and its database calls start failing.
+
+| Time | Event |
+|---|---|
+| 18:07:00 | pod-b fires, holds. Trigger `Blocked`, `fires` still empty |
+| 18:07:05 | pod-b cut from the network |
+| immediately | pod-b logs `MongoConnectionException` / `SocketException (125)` out of `QuartzSchedulerThread.Run()` |
+| 18:08 | pod-a: `pod-b last checked in at 18:06:58Z and is considered failed. Reclaiming 1 execution(s)` then `1 abandoned` |
+| 18:08 | **the 18:08 slot fires on pod-a, on time, no restart** |
+| 18:09, 18:10 | schedule continues on pod-a alone |
+| 18:10:12 | pod-b reconnected |
+| then | pod-b: `Scheduler pod-b/sla-watcher was declared failed by another instance and its work reclaimed. Re-registering.` |
+
+Afterwards: trigger `Waiting`, two scheduler rows checking in, and `fires` holding 18:08,
+18:09, 18:10 and 18:11 — one document each. **The 18:07 slot is missing and is not
+duplicated.** The outage is one slot, as with the kill.
+
+Three things separate this from the other two failures.
+
+**The process knows.** A kill and a freeze both end in silence; here the exception arrives at
+once and names the transport. Anything that wants to react to losing its database — stop
+taking work, drain, report unhealthy — has a signal here and has none in the other two.
+
+**The eviction is visible from both sides.** The survivor logs the reclaim, and the returning
+instance logs that it was declared failed and re-registers, rather than carrying on as if it
+still owned its scheduler row.
+
+**No second execution, but not for the reason that looks obvious.** The thawed pod in the
+freeze test finished its slot and wrote its record. Here the held execution also ran to
+completion — the hold is a `Task.Delay` and needs no database — and then its write failed,
+which is why no document appeared. The store protected the *record*. It did not stop the
+*work*. A side effect that does not go through Mongo would have happened anyway, and that is
+the case the insert-before-send order exists for.
+
 ## Not established
 
 - What the orphaned records cost once there are many of them. On 2.2.0-rc.1 they are cleaned,
   so this only matters for a database that ran on an older version.
-- Whether a network cut between pod and database (`docker network disconnect`) differs from a
-  freeze.
 - Whether a pod killed *without* `DisallowConcurrentExecution` behaves differently. Not
   tested and not planned: the attribute is required here, and testing a configuration nobody
   will run buys nothing.
