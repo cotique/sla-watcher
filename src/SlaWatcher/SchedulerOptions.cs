@@ -1,5 +1,6 @@
 namespace SlaWatcher;
 using System.ComponentModel.DataAnnotations;
+using Microsoft.Extensions.Configuration;
 
 /// <summary>
 /// Bound and validated at startup. A missing connection string has to fail at boot,
@@ -8,6 +9,26 @@ using System.ComponentModel.DataAnnotations;
 public sealed class SchedulerOptions
 {
     public const string SectionName = "Scheduler";
+
+    /// <summary>
+    /// Reads the section and validates it, before anything else reads a value out of it.
+    ///
+    /// Deliberately not <c>ValidateOnStart</c>. The Quartz properties are plain strings
+    /// assembled while the host is still being built, so a check deferred to host start runs
+    /// after the values it was meant to guard have already been handed to the scheduler and
+    /// to the driver. The guard then reports as
+    /// <c>MongoConfigurationException: The connection string '' is not valid</c>, which names
+    /// the driver and not the setting that is missing.
+    /// </summary>
+    public static SchedulerOptions ReadAndValidate(IConfiguration configuration)
+    {
+        var options = configuration.GetSection(SectionName).Get<SchedulerOptions>()
+                      ?? new SchedulerOptions();
+
+        Validator.ValidateObject(options, new ValidationContext(options), validateAllProperties: true);
+
+        return options;
+    }
 
     /// <summary>The database named in the connection string is the one the job store uses.</summary>
     [Required(AllowEmptyStrings = false)]
