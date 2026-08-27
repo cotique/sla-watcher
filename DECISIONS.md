@@ -1,123 +1,133 @@
-# sla-watcher — решения до первой строки кода
+# sla-watcher: the decisions taken before the first line of code
 
-Пет-проект. Две цели, в этом порядке: **проверить, ловит ли аудит что-нибудь настоящее**
-после интейка, и попутно пощупать Quartz + MongoDB на .NET.
+A pet project with two goals, in this order: **find out whether the audit catches anything
+real** after the intake, and get hands on Quartz with MongoDB on .NET along the way.
 
-Сервис ходит в Jira по расписанию, считает возраст тикетов в рабочих часах ревьюера и
-пишет эскалацию, когда что-то выходит за полосу.
+The service reads a tracker on a schedule, measures how long tickets have sat in a status in
+the reviewer's working hours, and raises an escalation when one leaves the band.
 
-**AI внутри нет.** Сервис детерминированный. Модель участвует снаружи — код пишет агент под
-правилами, которые родит интейк. Иначе на разборе «джоба сработала дважды» придётся сначала
-исключать модель, и тест шаблона превратится в отладку недетерминизма.
+**There is no AI inside it.** The service is deterministic. The model works from outside: an
+agent writes the code under the rules the intake produces. Otherwise every "why did this job
+fire twice" would start by ruling out the model, and a test of the template would turn into
+debugging non-determinism.
 
-**Jira — локальная заглушка в compose, а не живой инстанс.** Причина не в удобстве: всё
-интересное здесь — поведение при сбоях, а настоящая Jira не отдаст 429 по заказу и не
-обрежет changelog, когда тебе это нужно. Непроверенный обработчик 429 не считается
-работающим — то же канареечное правило, что и про тесты.
+**Jira is a local double in compose, not a live instance.** Not for convenience: everything
+interesting here is behaviour under failure, and a real Jira will not return 429 on request or
+truncate a changelog when you need it to. An untried 429 handler does not count as working,
+which is the same canary rule the tests are held to.
 
-Заглушка отдаёт два эндпоинта, которые сервис реально дёргает (поиск по JQL и changelog по
-тикету), и имеет управляющую ручку: отдать 429 с `Retry-After`, обрезать changelog как
-настоящая при `changelog.total > maxResults`, вернуть два тикета с одинаковым `updated` до
-секунды. Интеграционные тесты идут в CI без аккаунта, без секретов и без сети.
+The double serves the two endpoints the service actually calls (JQL search and the changelog
+for one issue) and carries a control endpoint: return 429 with `Retry-After`, truncate a
+changelog the way the real one does when `changelog.total > maxResults`, return two issues
+sharing an `updated` value to the second. Integration tests run without an account, without
+secrets and without network access.
 
-⚠️ **Плата, названная заранее:** заглушка кодирует моё представление о семантике Jira. Если
-представление неверное, она со мной согласится, тесты позеленеют, а на живой сломается.
-Лечится **одним контрактным тестом против настоящего инстанса**, отдельно и позже. До тех
-пор всё поведение заглушки — допущение, а не факт.
+⚠️ **The price, named in advance:** the double encodes my model of Jira's semantics. If that
+model is wrong the double agrees with me, the tests go green, and the real instance breaks.
+The cure is **one contract test against the real instance**, separately and later. Until then
+every behaviour of the double is an assumption rather than a fact.
 
-⚠️ Отсутствие трекера здесь — свойство **локального эксперимента**. Ни один проект компании
-без Jira не живёт, и этот кусок настроек никуда не переносится.
-
----
-
-## Решения, вынужденные выбором стека
-
-Это то, чем засевается интейк: путь C («genuinely new, no precedent») в протоколе требует
-исходить из решений, а не из инцидентов, потому что инцидентов ещё нет.
-
-### 1. Misfire: не догонять, ждать следующего срабатывания
-
-`WithMisfireHandlingInstructionDoNothing` на крон-триггере.
-
-Пропущенный прогон здесь самовосстанавливается: вотермарка не сдвинулась, значит следующий
-прогон просто возьмёт окно пошире. Догонять все пропущенные — это перечитать то же окно N раз
-и отправить эскалации по кругу.
-
-### 2. Вотермарка живёт в Mongo, а не в состоянии триггера
-
-Один документ на запрос: `lastSeenUpdated`. JQL — `updated >= lastSeen ORDER BY updated ASC`,
-страницами. Двигать вотермарку **только после того, как страница обработана целиком**.
-
-Следствие, которое надо принять сознательно: обработка получается **at-least-once**, значит
-всё, что ниже по потоку, обязано быть идемпотентным. Плюс `updated` в Jira имеет минутную
-гранулярность — окно перекрывать на минуту назад и полагаться на дедуп, а не рисковать
-пропуском.
-
-### 3. Ключ идемпотентности на каждую эскалацию
-
-`{issueKey}:{ruleId}:{thresholdCrossedAt}`, уникальный индекс в Mongo.
-
-Порядок: **сначала вставить, потом отправить.** Падение между двумя шагами должно терять
-отправку, а не дублировать её. При таком порядке два инстанса в кластере, дёрнувшие один
-триггер, безвредны — второй споткнётся об уникальный индекс.
-
-### 4. Бэкофф на 429 и запрет параллельного запуска
-
-`Retry-After` уважать. `[DisallowConcurrentExecution]` на джобе, плюс потолок времени
-выполнения: затротленный прогон не должен наложиться на следующее срабатывание.
-
-### 5. Возраст статуса считается по changelog, а не по `updated`
-
-Отдельный запрос `/rest/api/3/issue/{key}/changelog`.
-
-`expand=changelog` в поиске **обрезает историю**, когда `changelog.total > maxResults` — уже
-проверено на живых данных. Без changelog нельзя узнать, когда тикет вошёл в статус, то есть
-нельзя посчитать возраст в статусе вообще.
-
-### 6. Возраст — в рабочих часах ревьюера, не в календарных
-
-Quartz Calendar, исключающий нерабочие часы нужной таймзоны.
-
-Это и есть смысл метрики. На реальных данных календарные часы показывали рост медианы вдвое
-за восемь месяцев, а в рабочих часах ревьюера величина была плоской: рос не срок ревью, а
-число ночей и выходных внутри интервала.
-
-### 7. `RequestsRecovery` выключен
-
-Решено 2026-08-23, после замера на `2.2.0-rc.1`.
-
-Слот, на котором инстанс умер, теряется молча: восстановление пишет `1 abandoned`, в базе
-остаётся пропуск между соседними минутами. Включение отдало бы этот слот живому инстансу.
-
-**Почему всё равно выключен.** Пропущенный замер SLA клиент не видит. Повторную эскалацию
-видит. А повторное исполнение при включённом recovery не гипотетическое: замороженный
-инстанс возвращается и доделывает свою копию — проверено, — то есть переигранный слот может
-пойти дважды.
-
-**Что изменилось и почему это не меняет решение.** Детерминированный ключ из слота уже стоит,
-поэтому второе исполнение упирается в него, получает ошибку 11000 и пишет предупреждение
-вместо второй записи. Цена включения упала с «двойная эскалация» до «лишнее исполнение,
-пойманное и видимое в логах». Но ключ защищает **запись**, а не побочный эффект: пока
-настоящей отправки нет, защищать нечего, а когда появится — порядок «вставить, потом
-отправить» придётся соблюдать буквально, иначе ключ спасёт документ и не спасёт письмо.
-
-**Когда вернуться к вопросу.** Вместе с появлением настоящей отправки, тем же решением, что
-и порядок вставки относительно неё. Раньше — не о чем говорить.
+⚠️ The absence of a tracker here is a property of **a local experiment**. No company project
+runs without Jira, and this part of the setup transfers nowhere.
 
 ---
 
-## Что НЕ входит в первый срез
+## Decisions forced by the choice of stack
 
-Одна джоба, один триггер, одна коллекция, одно правило, эскалация в лог. Ни дашборда, ни
-уведомлений, ни второго стека. Второй стек (маленький TS-дашборд) добавляется **специально
-позже** — чтобы проверить, что интейк дописывает аддон на новый стек, а `check` до этого
-момента честно падает на его отсутствии.
+This is what seeds the intake: path C ("genuinely new, no precedent") in the protocol requires
+starting from decisions rather than from incidents, because there are no incidents yet.
 
-## Критерий успеха
+### 1. Misfire: do not catch up, wait for the next fire
 
-Не работающий сервис. Вопрос ровно один: **после интейка и первого среза кода аудит нашёл
-хоть одну настоящую проблему** — или отчитался чисто по коду, в котором проблема была.
+`WithMisfireHandlingInstructionDoNothing` on the cron trigger.
 
-Если чисто — интересен второй вопрос: правила были плохие, или проблем действительно не
-было. Ответ даёт только намеренно внесённая ошибка из списка выше: убрать `insert-then-send`
-и посмотреть, скажет ли аудит хоть что-то.
+A missed run heals itself here: the watermark has not moved, so the next run simply takes a
+wider window. Catching up on every missed fire means reading the same window N times over and
+sending the same escalations round again.
+
+### 2. The watermark lives in Mongo, not in trigger state
+
+One document per query: `lastSeenUpdated`. The JQL is
+`updated >= lastSeen ORDER BY updated ASC`, in pages. The watermark advances **only after a
+page has been processed in full**.
+
+A consequence to accept deliberately: processing is **at-least-once**, so everything
+downstream has to be idempotent. On top of that, `updated` in Jira has minute granularity, so
+the window overlaps a minute backwards and relies on deduplication rather than risking a
+miss.
+
+### 3. An idempotency key on every escalation
+
+`{issueKey}:{ruleId}:{thresholdCrossedAt}`, with a unique index in Mongo.
+
+The order is **insert first, send second**. A crash between the two steps has to lose the
+send rather than duplicate it. In that order two clustered instances that both picked up one
+trigger are harmless: the second one trips over the unique index.
+
+### 4. Backoff on 429, and no concurrent execution
+
+`Retry-After` is honoured. `[DisallowConcurrentExecution]` on the job, plus a ceiling on
+execution time: a throttled run must not overlap the next fire.
+
+### 5. Status age comes from the changelog, not from `updated`
+
+A separate call to `/rest/api/3/issue/{key}/changelog`.
+
+`expand=changelog` on search **truncates the history** when `changelog.total > maxResults`,
+already verified against live data. Without the changelog there is no way to know when a
+ticket entered a status, which means there is no way to measure its age in that status at all.
+
+### 6. Age is measured in the reviewer's working hours, not in calendar hours
+
+This is the whole point of the metric. On real data the median in calendar hours doubled over
+eight months, while in the reviewer's working hours it was flat: what grew was not the length
+of review, it was the number of nights and weekends inside the interval.
+
+**Mechanism, corrected 2026-08-26.** This decision used to name a Quartz calendar. It cannot
+be one. `ICalendar` in Quartz 3.19.1 exposes `IsTimeIncluded` and `GetNextIncludedTimeUtc` and
+nothing else, and both are questions about a single instant: a Quartz calendar can stop a
+trigger firing out of hours, but it cannot say how much working time lies between two moments.
+The measurement is our own code, `WorkingHours` over a `WorkingCalendar`. The intent of the
+decision is unchanged; only the named mechanism was wrong.
+
+### 7. `RequestsRecovery` is off
+
+Decided 2026-08-23, after measuring on `2.2.0-rc.1`.
+
+The slot an instance dies on is lost silently: recovery logs `1 abandoned` and the database
+keeps a gap between adjacent minutes. Turning it on would hand that slot to a live instance.
+
+**Why it stays off anyway.** A missed SLA reading is invisible to the customer. A repeated
+escalation is not. And a repeated execution under recovery is not hypothetical: a frozen
+instance comes back and finishes its own copy, which was measured, so a replayed slot can run
+twice.
+
+**What changed, and why it does not change the decision.** The deterministic key derived from
+the slot is already in place, so a second execution collides with it, gets error 11000 and
+logs a warning instead of writing a second record. The cost of turning recovery on has fallen
+from "a duplicate escalation" to "an extra execution, caught and visible in the log". But the
+key protects the **record**, not the side effect: while there is no real sending there is
+nothing to protect, and once there is, the insert-then-send order has to be followed to the
+letter, or the key saves the document and not the message.
+
+**When to revisit.** Together with real sending, in the same decision as the order of the
+insert relative to it. There is nothing to discuss before then.
+
+---
+
+## What is NOT in the first slice
+
+One job, one trigger, one collection, one rule, escalation to the log. No dashboard, no
+notifications, no second stack. The second stack (a small TypeScript dashboard) is added
+**deliberately later**, to check that the intake writes an addon for a new stack and that
+`check` fails honestly on its absence until then.
+
+## The measure of success
+
+Not a working service. There is exactly one question: **after the intake and the first slice
+of code, did the audit find a single real problem**, or did it report clean on code that had
+one.
+
+If it reports clean, the second question becomes interesting: were the rules bad, or were
+there genuinely no problems. Only a deliberately introduced fault from the list above answers
+it: remove `insert-then-send` and see whether the audit says anything at all.
