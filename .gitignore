@@ -48,3 +48,11 @@ graphify-out/
 
 # written by the session hook, one file per machine
 .claude/session-state.json
+
+# Working papers between a human and an agent: plans, handover briefs and their
+# attachments. They are written to be acted on and then to go stale, and a stale plan in a
+# repository reads as a description of the code. What survives them belongs in DECISIONS.md
+# (why a thing is the way it is) or in docs/ as a measurement (what was observed).
+docs/plans/
+docs/attachments/
+docs/*-brief.md
