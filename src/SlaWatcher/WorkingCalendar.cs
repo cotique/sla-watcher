@@ -27,9 +27,7 @@ public sealed record WorkingCalendar(
         if (DayEnd <= DayStart)
         {
             throw new ArgumentException(
-                $"The working day ends at {DayEnd} and starts at {DayStart}. A day that wraps " +
-                "past midnight is not supported: every interval here is measured within one " +
-                "local date.");
+                $"The working day ends at {DayEnd} and starts at {DayStart}. A day that wraps past midnight is not supported: every interval here is measured within one local date.");
         }
 
         if (WorkingDays.Count == 0)

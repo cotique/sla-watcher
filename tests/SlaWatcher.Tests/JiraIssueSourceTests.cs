@@ -173,9 +173,9 @@ public class JiraIssueSourceTests
     private static JiraIssueSource Source(
         ScriptedHandler handler,
         Action<TimeSpan>? delay = null,
-        int maxPages = 200,
-        int maxRetries = 3,
-        int fallbackRetryAfterSeconds = 5)
+        int maxPages = JiraOptions.DefaultMaxPages,
+        int maxRetries = JiraOptions.DefaultMaxRetries,
+        int fallbackRetryAfterSeconds = JiraOptions.DefaultFallbackRetryAfterSeconds)
     {
         var options = new JiraOptions
         {
@@ -255,8 +255,7 @@ public class JiraIssueSourceTests
             if (_queue!.Count == 0)
             {
                 throw new InvalidOperationException(
-                    $"The client asked for more than the script provides: request {Requests.Count} " +
-                    $"to {request.RequestUri}.");
+                    $"The client asked for more than the script provides: request {Requests.Count} to {request.RequestUri}.");
             }
 
             return Task.FromResult(_queue.Dequeue());
