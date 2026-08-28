@@ -166,10 +166,51 @@ firing.
 - Claims about behaviour carry the command that produced them. "Tests pass" without the runner
   output is not evidence.
 
+## Branching and merging (section 10)
+
+- [observed] [mechanical] **`master` is the only long-lived branch, and it advances only through
+  a merged pull request.** Not `git push origin master`, and not the merges API either: that was
+  used once, on 2026-08-23, and it leaves a merge commit with no page, no diff to open and
+  nowhere to leave a comment.
+- [observed] [mechanical] **The branch name carries the kind**: `feat/`, `fix/`, `chore/`,
+  `docs/`, `plan/`, and `store/<version>` for taking a new version of the job store. A generated
+  session name such as `claude/<slug>` never reaches a remote. Rename before the first push.
+- [predicted] [judgment] **One deliverable per branch.** A stage of a plan is a branch.
+- [predicted] [mechanical] **Delete the branch on both sides once it is merged.** A merged branch
+  left on the remote reads as work in flight.
+- [observed] [mechanical] **The server cannot refuse a push to `master` here.** Branch protection
+  and rulesets are gated by plan on a private repository, and this one stays private: three
+  endpoints answer `Upgrade to GitHub Pro or make this repository public`, with a token that
+  carries the `repo` scope. So the refusal is local, in `.githooks/pre-push`, enabled with
+  `core.hooksPath`. That is local configuration, so every clone turns it on once for itself.
+- [observed] [mechanical] **The same hook refuses a tag push.** A tag publishes, so it is created
+  deliberately rather than swept along with a branch. Nothing is released from this repository
+  yet; the store repository is where that matters, and where a refused tag push would be felt.
+- [predicted] [judgment] **Force-pushing a branch that is under review** is for correcting that
+  branch's own mistake, and it is said out loud in the pull request when it happens.
+
+## Code style (section 3)
+
+Rules that came out of review rather than from a style guide, so each one has a reason and none
+of them is taste.
+
+- [observed] [mechanical] **An immutable string is built in one expression.** Not a literal plus
+  a literal plus a literal across three lines: build the whole value once and let it read as the
+  thing it produces. Checked by `.claude/style.sh`.
+- [observed] [judgment] **No magic numbers.** A literal that carries meaning is a named constant,
+  and the name says why the value is what it is rather than repeating the digits. Bounds on a
+  `Range` attribute included. Not mechanically checkable, so the audit raises it and a human
+  decides.
+- [observed] [mechanical] **A counter that is read by a person starts at one**, so a log line
+  needs no arithmetic to be legible. A loop that counts from zero and then adds one in the
+  message is doing in the message what the starting value should do.
+- Documentation comments are the author's, and a formatting pass over them is not a review
+  finding. Left deliberately out of `style.sh`.
+
 ## Pre-shipping checks (section 10)
 
-`dotnet build -warnaserror`, the test suite, and `.claude/check.sh --layer` all green. The
-compose stack comes up from cold on a machine that has never run it.
+`dotnet build -warnaserror`, the test suite, `.claude/check.sh --layer` and `.claude/style.sh`
+all green. The compose stack comes up from cold on a machine that has never run it.
 
 ---
 
