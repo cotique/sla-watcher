@@ -1,0 +1,39 @@
+{
+  "$comment": "Configuration for the discipline pack's hooks. Without this file they run on built-in defaults, which for secret-guard and dod-gate means they do nothing at all.",
+
+  "mode": "enforce",
+
+  "events": { "enabled": true, "path": ".claude/discipline-events.jsonl" },
+
+  "$commentBranches": "Matches .githooks/pre-push, which is the authoritative half: git hands that hook the real refs, while the PreToolUse gate can only read a command line.",
+  "protectedBranches": ["main", "master", "develop", "release/*"],
+
+  "blockAllPush": false,
+
+  "$commentSecrets": "Registering it is the opt-in. There is one credential in this project's life, the tracker token, and it is supposed to live in user-secrets or the environment and never in a file here.",
+  "secrets": {
+    "ignorePatterns": ["DOUBLE-[0-9]+"]
+  },
+
+  "$commentDod": "Runs when a session with uncommitted C# changes tries to end. The integration tests are excluded on purpose: they need the local MongoDB, and a gate that fails because Docker is not running teaches people to switch the gate off.",
+  "dod": {
+    "fileGlobs": ["*.cs"],
+    "preconditions": [
+      {
+        "name": "dotnet sdk",
+        "command": "dotnet --version",
+        "remedy": "Install the .NET 9 SDK, then retry."
+      }
+    ],
+    "checks": [
+      { "name": "build", "command": "dotnet build --nologo -warnaserror" },
+      { "name": "unit tests", "command": "dotnet test --nologo --no-build --filter \"Category!=Integration\"" },
+      { "name": "style", "command": "bash .claude/style.sh" }
+    ]
+  },
+
+  "$commentFormat": "Verified to pass on this repository before being switched on, so the first edit does not arrive with a wall of unrelated complaints.",
+  "format": {
+    "*.cs": "dotnet format --verify-no-changes --include \"{file}\""
+  }
+}

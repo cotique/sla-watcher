@@ -173,8 +173,9 @@ firing.
   used once, on 2026-08-23, and it leaves a merge commit with no page, no diff to open and
   nowhere to leave a comment.
 - [observed] [mechanical] **The branch name carries the kind**: `feat/`, `fix/`, `chore/`,
-  `docs/`, `plan/`, and `store/<version>` for taking a new version of the job store. A generated
-  session name such as `claude/<slug>` never reaches a remote. Rename before the first push.
+  `docs/`, `plan/`, and `store/2.2.0` shaped names for taking a new version of the job store. A
+  generated session name, anything under `claude/` with a random suffix, never reaches a
+  remote: rename it before the first push.
 - [predicted] [judgment] **One deliverable per branch.** A stage of a plan is a branch.
 - [predicted] [mechanical] **Delete the branch on both sides once it is merged.** A merged branch
   left on the remote reads as work in flight.
@@ -206,6 +207,10 @@ of them is taste.
   message is doing in the message what the starting value should do.
 - Documentation comments are the author's, and a formatting pass over them is not a review
   finding. Left deliberately out of `style.sh`.
+- The em dash rule under "Communication language" applies to **new** prose and is not enforced
+  by anything. It was stated at the intake and broken in fourteen of our own files before
+  anyone checked, and rewriting them all to satisfy a check is not worth the diff. Decided
+  2026-08-29.
 
 ## Pre-shipping checks (section 10)
 

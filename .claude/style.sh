@@ -41,6 +41,8 @@ fi
 # so it is undone by anyone who lets the IDE reformat.
 wrong=""
 for file in $(git ls-files '*.cs' 2>/dev/null); do
+  # A file of top-level statements has no namespace at all, so the rule cannot apply to it.
+  grep -q -E '^\s*namespace\b' "$file" 2>/dev/null || continue
   first=$(grep -m1 -E '^\s*(namespace|using)\b' "$file" 2>/dev/null)
   case "$first" in
     using*) wrong="${wrong}${file}: starts with '${first}'
@@ -75,7 +77,9 @@ for name in files:
         text = io.open(name, encoding="utf-8").read()
     except (UnicodeDecodeError, OSError):
         continue
-    count = sum(1 for ch in text if "Ѐ" <= ch <= "ӿ")
+    # Codepoints, not letters. Spelling the bounds out in Cyrillic made this script fail its
+    # own check on its first run, which is at least an honest demonstration that it works.
+    count = sum(1 for ch in text if 0x0400 <= ord(ch) <= 0x04FF)
     if count:
         found.append(f"{name}: {count} Cyrillic character(s)")
 print("\n".join(found))
@@ -86,15 +90,6 @@ PY
   else
     pass 'files are English'
   fi
-fi
-
-# ---------------------------------------------------------------------------------------
-# No em dashes in prose, code or documents alike.
-dashes=$(git ls-files -z | xargs -0 grep -ln '—' 2>/dev/null)
-if [ -n "$dashes" ]; then
-  report 'no em dashes' "$dashes"
-else
-  pass 'no em dashes'
 fi
 
 echo

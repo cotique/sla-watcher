@@ -23,8 +23,16 @@ jobs:
       - name: Check the project layer
         run: .claude/check.sh --layer
 
+      # The style rules a compiler does not enforce. Kept out of the audit's judgment list on
+      # purpose: only what is checkable without an opinion is checked here.
+      - name: Check the style rules
+        run: .claude/style.sh
+
       - name: Build
         run: dotnet build -warnaserror
+
+      - name: Check formatting
+        run: dotnet format --verify-no-changes
 
       # Everything not marked Integration. Integration tests need Mongo and the double, so
       # they are a local gate, not a CI one.
