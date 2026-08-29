@@ -14,17 +14,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The exact SDK from global.json, not the latest 9.0.x. Two patch versions disagreed
+      # about whitespace after a file-scoped namespace, so the formatting gate passed on one
+      # machine and failed on the other with no change to the code between them. A floating
+      # SDK moves the analyser set as well, and -warnaserror is downstream of that.
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          global-json-file: global.json
 
       # Fails on a missing shared.md, on placeholders left in filled files, on a stack with
       # no addon, and on discovery without a planner.
       - name: Check the project layer
         run: .claude/check.sh --layer
 
+      # The style rules a compiler does not enforce. Kept out of the audit's judgment list on
+      # purpose: only what is checkable without an opinion is checked here.
+      - name: Check the style rules
+        run: .claude/style.sh
+
       - name: Build
         run: dotnet build -warnaserror
+
+      - name: Check formatting
+        run: dotnet format --verify-no-changes
 
       # Everything not marked Integration. Integration tests need Mongo and the double, so
       # they are a local gate, not a CI one.
