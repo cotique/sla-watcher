@@ -10,6 +10,16 @@ public sealed class SchedulerOptions
 {
     public const string SectionName = "Scheduler";
 
+    public const int DefaultStuckThresholdMinutes = 15;
+    public const int DefaultStuckCheckIntervalSeconds = 60;
+
+    /// <summary>Below the store's own failure window a normal reclaim would read as a fault.</summary>
+    private const int MinimumStuckThresholdMinutes = 2;
+
+    private const int MaximumStuckThresholdMinutes = 24 * 60;
+    private const int MinimumStuckCheckIntervalSeconds = 5;
+    private const int MaximumStuckCheckIntervalSeconds = 60 * 60;
+
     /// <summary>
     /// Reads the section and validates it, before anything else reads a value out of it.
     ///
@@ -69,6 +79,18 @@ public sealed class SchedulerOptions
 
     /// <summary>Optional. Keeps the store's collections apart from anything else in the database.</summary>
     public string CollectionPrefix { get; init; } = "quartz";
+
+    /// <summary>
+    /// How long an execution may run before the watchdog calls it stuck. Well above anything a
+    /// job here does, and well above the store's own failure window, so a normal reclaim is not
+    /// reported as a fault.
+    /// </summary>
+    [Range(MinimumStuckThresholdMinutes, MaximumStuckThresholdMinutes)]
+    public int StuckExecutionThresholdMinutes { get; init; } = DefaultStuckThresholdMinutes;
+
+    /// <summary>How often the watchdog looks.</summary>
+    [Range(MinimumStuckCheckIntervalSeconds, MaximumStuckCheckIntervalSeconds)]
+    public int StuckExecutionCheckIntervalSeconds { get; init; } = DefaultStuckCheckIntervalSeconds;
 
     /// <summary>
     /// Cron for the polling trigger, in configuration rather than as a literal in code.

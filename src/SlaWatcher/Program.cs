@@ -61,6 +61,12 @@ builder.Services.AddQuartz(q =>
 
 builder.Services.AddSingleton(new FireLog(options.MongoConnectionString));
 
+// The watchdog runs on its own timer rather than as a job, so it still reports when the
+// scheduler is the thing that is stuck.
+builder.Services.AddSingleton(new StuckExecutionProbe(
+    options.MongoConnectionString, options.CollectionPrefix, options.InstanceName));
+builder.Services.AddHostedService<StuckExecutionMonitor>();
+
 builder.Services.AddQuartzHostedService(o => o.WaitForJobsToComplete = true);
 
 // After AddQuartzHostedService on purpose: hosted services start in registration order, and

@@ -113,7 +113,10 @@ from measurement and any deployment has to respect them:
 - a rolling update is a mixed-version upgrade, and mixed versions of the job store are unsafe.
   Stop the old instances before starting the new ones
 - watch `quartz.firedTriggers` for documents in `Executing` older than a job could plausibly
-  run. Nothing else reports a stopped schedule: no error, no log line, no failed health check
+  run. Nothing else reports a stopped schedule: no error, no log line, no failed health check.
+  `StuckExecutionMonitor` does this from inside the service, on its own timer, and logs at
+  error. It is the only witness to an instance that is alive with a job wedged inside it,
+  because the store's recovery reclaims work only from an instance that stopped checking in
 
 ## Who to ask
 
