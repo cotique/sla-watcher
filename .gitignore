@@ -56,3 +56,6 @@ graphify-out/
 docs/plans/
 docs/attachments/
 docs/*-brief.md
+
+# written by the discipline hooks at runtime, one file per machine
+.claude/discipline-events.jsonl
