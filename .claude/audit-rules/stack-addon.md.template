@@ -1,0 +1,79 @@
+# <stack> — audit checklist addon (template)
+
+> One file per stack in the repo, sitting next to `shared.md`. Loaded by `/audit` when
+> the diff touches files that map to this stack, or explicitly via `/audit <stack>`.
+>
+> Fill this from the architect intake (`ARCHITECT-INTAKE.md`), not from a style guide.
+> Anything a linter already enforces does not belong here.
+
+## Scope
+
+Which paths map to this stack, and the framework plus version they run:
+
+- `<repo>/<glob>` — <framework, version, any fork or unusual variant>
+
+If you run a fork or a pinned old major, say so on the first line. It changes what
+every other rule means.
+
+## Layout and request flow (section 2)
+
+Entry point → bootstrap → routing → handler → service → output. Name the real files.
+Where a second registration step exists, say it here rather than trusting anyone to
+remember.
+
+## Code and style (section 3)
+
+Only what a linter cannot catch. Naming the router requires, legacy patterns to match
+rather than "fix", constructs that are banned and why.
+
+## Placement and config (section 4)
+
+Where a new file of each kind goes. Which config file needs a matching entry when you
+add something. Anything that must be edited in two places.
+
+## Security (section 5)
+
+Stack-specific injection and escaping paths, mass-assignment surfaces, auth decorators
+or route groups that must be present, constant-time comparison requirements.
+
+## Performance (section 7)
+
+The N+1 shapes this stack makes easy. Anything with a deadline or timeout, and what
+happens when it is exceeded.
+
+## Tests (section 8)
+
+Test namespaces and filters. The command that runs a useful subset. What the full suite
+covers and what it silently does not.
+
+## DB and migrations (section 9)
+
+Migration location and naming. Whether they must be reversible. Codegen or schema
+regeneration that must follow a model change. Guards on destructive operations.
+
+## Docs, CI and shipping (section 10)
+
+Exact pre-ship commands, in order:
+
+```bash
+<lint>
+<type-check>
+<test>
+<build>
+```
+
+Note any target that does more than its name suggests — a lint step that also tidies
+dependencies will fail on an untidied new dependency, and the error will not say so.
+
+---
+
+## Rule format
+
+Keep each rule on one line where possible, and make it decidable:
+
+```
+- <what to check>. -> <what to do instead>.        [section N] [mechanical|judgment]
+```
+
+`mechanical` rules get fixed in place and reported as `FIXED`. `judgment` rules are
+reported as `OPEN` for a human. A rule that declares neither will be guessed at.

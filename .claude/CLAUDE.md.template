@@ -1,0 +1,196 @@
+# CLAUDE.md — <PROJECT> project rules
+
+> Template. Copy to your workspace project root and fill in every `<...>` placeholder.
+> This is the **project layer**. The generic process rules live one level up in
+> `workspace-CLAUDE.md` and are not repeated here — this file only adds project facts
+> and overrides on conflict.
+>
+> Keep it dense and factual. It is the single densest source of project context an
+> agent gets, and it is the file most worth the time to write properly.
+
+## Project Overview
+
+`<PROJECT>` — <one-line description of what the product is>.
+
+Repository layout at the workspace root:
+
+- `<repo-1>/` — <stack, framework + version, persistence, frontend, build tool>
+- `<repo-2>/` — <stack> ...
+- `<repo-n>/` — <stack> ...
+
+State plainly whether these are **separate git repos or one repo**. If they are
+separate, say so here: it changes how cross-repo contract changes must be committed.
+
+## Commands
+
+Group by concern, note the working directory for each block, and only list commands
+that actually work today.
+
+**Environment (from `<dir>/`):**
+```bash
+<start / stop / shell-into-container / install-deps>
+```
+
+**Build (from `<dir>/`):**
+```bash
+<build, build:js, build:css or equivalent>
+```
+
+**Database (from `<dir>/`):**
+```bash
+<migrate / schema regeneration>
+```
+
+**Tests (from `<dir>/`):**
+```bash
+<full suite>
+<single file / filtered run>
+```
+
+State the **real** coverage situation, including if it is bad. An agent that believes
+coverage is good will not write tests.
+
+## Architecture
+
+Cover, in this order, only what is true:
+
+- **Persistence** — which store holds what. Note non-standard directory layouts
+  (e.g. a vendor dir that is not `vendor/`).
+- **Request flow** — entry point → bootstrap → routing → controller → service → view.
+- **Key large files** — the 3-6 files that carry the most logic, with paths relative
+  to a named repo. This is the highest-value section for a new agent.
+- **Controller / handler pattern** — naming the router requires, where routes register,
+  any second registration step that is easy to forget.
+- **Background work** — queue, base class, handler method name, how to enqueue, timeouts.
+- **Frontend** — libraries, global namespace, source and output paths.
+- **Config** — where config lives, env mechanism, the env template filename.
+- **External integrations** — list them. Do not name credentials or per-vendor account
+  detail here.
+- **Environments** — dev / staging / UAT / production and what differs between them.
+
+## Conventions
+
+Indentation, naming, any legacy pattern an agent will meet and should match rather
+than "fix". Whether a linter or formatter exists — and if none does, say
+"match surrounding code style" explicitly.
+
+## Self-Audit Extensions
+
+Stack-specific checks that extend the Phase 3 checklist in the parent rules. Each line
+should be a mistake someone has actually made:
+
+```
+□ <schema/codegen step that must be re-run after a model change>
+□ <route registration rule>
+□ <second registration step that is easy to miss>
+□ <background job constraints — handler name, dispatch key, timeout>
+□ <config: no hardcoded env-specific values>
+□ <build passes after frontend changes>
+```
+
+## Documentation vault (`docs/`)
+
+If `docs/` is a symlink to an external vault, say so and note that the target is
+machine-specific. General frontmatter and folder rules are in the parent file.
+
+### Area values
+
+`area`: `architecture` | `integrations` | `testing` | `infrastructure` | `analysis` | `general`
+
+### Vault structure
+
+```
+docs/
+├── architecture/
+│   └── diagrams/
+├── integrations/
+├── testing/
+├── analysis/
+├── plans/
+└── infrastructure/
+```
+
+### Where to put new files
+
+| Content | Location | Type |
+|---|---|---|
+| Architecture overview | `docs/architecture/{name}.md` | reference |
+| Architecture diagram | `docs/architecture/diagrams/{name}` + `.md` | reference |
+| External integration | `docs/integrations/{name}.md` | reference |
+| Test patterns | `docs/testing/{name}.md` | reference |
+| Code analysis / audit | `docs/analysis/{name}.md` | analysis |
+| Implementation plan | `docs/plans/{feature}/be-plan.md` + `fe-plan.md` | plan |
+| Infra / deployment | `docs/infrastructure/{name}.md` | reference |
+
+---
+
+## Knowledge store — project config
+
+> The general protocol is in the parent file. Project-specific config only below.
+> Fill this in for the store you actually run — `wippy-kb`, `mempalace`, `iknow`.
+
+- **Store and version:** `<tool>`
+- **This project's partition:** `<project>`
+- If a code index is generated, name the command that owns it. The agent writes
+  findings only and never touches the index.
+- **Partitions:**
+  - `<repo_1>` — code index from `<repo-1>/`
+  - `<repo_n>` — code index from `<repo-n>/`
+  - `documentation` — files from `docs/`
+  - `decisions` — architecture and design decisions
+  - `bugs` — root cause + fix + prevention
+  - `general` — catch-all
+- Where the partition mapping lives, and whether a subproject needs its own.
+- **Re-index after large code changes** — the exact command, plus how to force-include
+  a language the indexer skips by default. Both belong here verbatim: an agent will not
+  reconstruct them.
+
+<details><summary>Example, mempalace</summary>
+
+```bash
+mempalace mine <repo-1>/ --agent claude
+```
+
+Force-include an extension outside the defaults:
+
+```bash
+FILES=$(find <repo>/src -name "*.<ext>" -type f \
+  | sed 's|<repo>/||' | tr '\n' ',' | sed 's/,$//') && \
+  mempalace mine <repo>/ --agent claude --include-ignored "$FILES"
+```
+
+</details>
+
+---
+
+## Per-service notes
+
+One section per service that has enough of its own shape to need it: stack, port,
+directory layout, core entities, extension mechanism, and the conventions that apply
+only inside it.
+
+---
+
+## graphify
+
+One graph per subproject:
+
+| Path | Covers | Stack |
+|---|---|---|
+| `<repo-1>/graphify-out/` | <what> | <languages> |
+| `<repo-n>/graphify-out/` | <what> | <languages> |
+
+Rules:
+
+- Before answering an architecture or codebase question, read the relevant
+  `GRAPH_REPORT.md` for god nodes and community structure.
+- If `wiki/index.md` exists in a `graphify-out/`, navigate that instead of raw files.
+- After modifying code in a subproject, run the cheap AST-only rebuild there:
+  ```bash
+  cd <repo> && python3 -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))"
+  ```
+  Use the interpreter recorded in `graphify-out/.graphify_python` if graphify was
+  installed as a uv tool rather than into the system python.
+- For larger changes (new modules, architecture shifts) prefer `/graphify-update`.
+- Keep `.graphifyignore` current when adding generated or vendored directories.
+- Run the first graphify once a skeleton exists, not on an empty repo.

@@ -1,0 +1,44 @@
+{
+  "_README": [
+    "Project-scoped MCP servers. This file is committed, so everyone who clones the",
+    "repo gets the same servers — that is the whole point: a developer should not",
+    "have to be told which MCPs this project needs.",
+    "",
+    "Secrets never go here. Values come from the environment; the developer exports",
+    "them once per machine, and `check` verifies they are set.",
+    "",
+    "Fill in the placeholders and save as .mcp.json. The intake does this for you.",
+    "Delete the servers this project does not use — a server that fails to start is",
+    "noise on every session, and noise gets ignored, including the real failures.",
+    "",
+    "Delete this _README key too. It is ignored at runtime, but it is not config."
+  ],
+
+  "mcpServers": {
+    "jira": {
+      "command": "uvx",
+      "args": ["mcp-atlassian"],
+      "env": {
+        "JIRA_URL": "<https://jira.example.com>",
+        "JIRA_PERSONAL_TOKEN": "${JIRA_PERSONAL_TOKEN}"
+      }
+    },
+
+    "kb": {
+      "_note": [
+        "The knowledge store. Keep ONE of the variants below and delete the rest.",
+        "Whichever you keep, the call names it exposes must match the table at the",
+        "top of CLAUDE.md — the rules there are written against placeholders and an",
+        "agent will not guess them.",
+        "",
+        "mempalace: the router in .claude/kb/mcp-router.sh gives each repo its own",
+        "store. Without it, concurrent sessions in different repos write one store",
+        "at the same time and corrupt the index.",
+        "",
+        "wippy-kb / iknow: point command+args at that tool's own entry point."
+      ],
+      "command": "<absolute path to .claude/kb/mcp-router.sh, or your store's entry point>",
+      "args": []
+    }
+  }
+}

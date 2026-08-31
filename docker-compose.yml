@@ -1,0 +1,65 @@
+# Local only. CI has no database and no infrastructure by design, so nothing here runs on a
+# runner.
+#
+# Mongo 8 for this project alone, on a non-default port: the machine already has a MongoDB
+# service on 27017, older and shared with other work, and this leaves it untouched.
+#
+# The two pods exist for the failure tests. A container can be OOM-killed by the kernel,
+# frozen with `docker pause`, or cut from the database with `docker network disconnect`, and
+# none of that can be done to a process on the host. They do not start with the stack:
+#   docker compose up -d mongo
+#   docker compose --profile pods up -d --build
+services:
+  mongo:
+    image: mongo:8
+    container_name: sla-watcher-mongo
+    # Infrastructure comes back by itself: after an OS crash this container stayed down and
+    # took the whole bench with it. The pods deliberately have no restart policy — their
+    # death is the experiment, and an automatic restart clears the block on its own and hides
+    # the failure being measured. If the product ever gets one, the failure tests turn it off.
+    restart: unless-stopped
+    ports:
+      - "27117:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  pod-a: &pod
+    profiles: ["pods"]
+    build:
+      context: ./src/SlaWatcher
+    container_name: sla-watcher-pod-a
+    depends_on:
+      mongo:
+        condition: service_healthy
+    # The limit is what turns a large allocation into a kernel kill instead of a slow
+    # container. 192m leaves room for the runtime and still dies on a 256MB grab.
+    mem_limit: 192m
+    environment:
+      DOTNET_ENVIRONMENT: Development
+      Scheduler__MongoConnectionString: mongodb://mongo:27017/sla-watcher
+      Scheduler__InstanceId: pod-a
+      Scheduler__TickCron: "0 * * * * ?"
+      # Test instruments, zero unless a scenario sets them.
+      Scheduler__WorkSeconds: "${WORK_S:-0}"
+      # Armed per pod, not globally: with the trap on both, each one dies on its own
+      # allocation in turn and nothing survives long enough to be measured.
+      Scheduler__AllocateMb: "${ALLOC_MB_A:-0}"
+
+  pod-b:
+    <<: *pod
+    container_name: sla-watcher-pod-b
+    environment:
+      DOTNET_ENVIRONMENT: Development
+      Scheduler__MongoConnectionString: mongodb://mongo:27017/sla-watcher
+      Scheduler__InstanceId: pod-b
+      Scheduler__TickCron: "0 * * * * ?"
+      Scheduler__WorkSeconds: "${WORK_S:-0}"
+      Scheduler__AllocateMb: "${ALLOC_MB_B:-0}"
+
+volumes:
+  mongo-data:

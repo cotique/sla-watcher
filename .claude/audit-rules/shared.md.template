@@ -1,0 +1,202 @@
+# shared — audit checklist addon (template)
+
+> Always loaded by `/audit`. This is the file that turns the generic `audit` skill
+> into a reviewer that knows your project. It does not travel with the skill.
+>
+> Every rule below should be a trap someone on the team has actually hit. A rule
+> nobody has been burned by is noise. Tag each rule with the audit skill's checklist
+> section number so the skill can route it.
+>
+> Checklist sections: 2 architecture · 3 code and style · 4 placement and config ·
+> 5 security · 6 GDPR · 7 performance · 8 tests · 9 DB and migrations ·
+> 10 docs, CI and shipping
+
+## Project stack taxonomy
+
+Map each subproject to an audit stack. `/audit` uses this to decide which addons to
+load and which stacks to report as "not audited".
+
+- `<stack-key>` — `<repo>/` (<framework and version>)
+- `<stack-key>` — `<repo>/<glob>` (<what it is>)
+
+State which of the skill's generic stack names do **not** apply here, and which of
+your names is canonical when two overlap.
+
+## Repository layout (section 2)
+
+- Are the subprojects separate git repos or one? If separate: a change in one does
+  not propagate, so cross-project contract changes need coordinated commits in both
+  plus a synced deploy. List the contract pairs that have this property.
+- Is the workspace root a repo, or just a planning and docs aggregator?
+- Where the knowledge store's config lives, and how it is partitioned.
+
+## CI (section 10)
+
+- One CI config per project, or one shared?
+- **Variable precedence.** Document which scope wins. On GitLab, project-level CI
+  variables always beat a `variables:` block in `.gitlab-ci.yml` — so a job that
+  needs a different value locally must `export` it inside `script:`, and declaring
+  it in `variables:` silently does nothing. Name the variables this actually bites.
+- **Pinned service versions.** Any CI service image pinned to an old release because
+  a newer one breaks something — record the version and the reason, or someone will
+  "helpfully" bump it.
+- **Destructive test guards.** If the integration suite drops a schema, document the
+  guard that stops it running against a real database (e.g. the DB name must contain
+  `test`, or an explicit allow-wipe flag), and cite the file and lines.
+
+## Local dev environment (section 4)
+
+- **Port map**, with the reason for every non-default port. "Port X is already bound
+  on a typical dev host, so we use Y" is the kind of thing that gets rediscovered
+  painfully once per new joiner.
+- Any config that is **not** env-interpolated at registration time, and therefore
+  needs a literal edit for a local port shift plus a revert before commit. Name the
+  file.
+
+## Secrets and PII (sections 5 and 6)
+
+- **PII inventory** — list exactly which personal fields the system holds. Then the
+  rule: never log raw PII, use entity IDs or UUIDs in log contexts.
+- **Where secrets live** (secret manager, per-env references) and the rule that
+  plaintext is never committed.
+- **Rotation properties** — if a service supports a secondary credential during a
+  rotation window it can rotate with zero downtime; if it does not, rotation needs a
+  maintenance window. Say which services are which.
+- **Third-party keys** — the rule that they live only in the real env file, never in
+  a checked-in template, and that CI must never echo their values (lengths only).
+
+> Do not name the client, their business model, their vendors, or their account
+> identifiers in this file. Rules, not customer facts.
+
+## Environment files (section 4)
+
+- `.env` is gitignored. List the checked-in templates that are allowed
+  (e.g. `.env.example`, `.env.sample`, `.env.stage`) and the CI job that rejects
+  anything else.
+- New env var → add to the template **and** to the infrastructure doc. Name which doc.
+
+## Documentation (section 10)
+
+- Where the vault lives and the frontmatter schema it needs (schema itself is in the
+  parent rules file).
+- Plans live under `docs/plans/<feature>/`. After implementation, record deliberate
+  divergences in the plan and archive it rather than deleting it.
+- Which architecture doc belongs to which subproject.
+- After a cross-project contract change, update **both** sides of the contract doc.
+
+## graphify (section 10)
+
+- One `graphify-out/` per subproject. Incremental rebuild command after significant
+  changes; `/graphify-update` for larger ones.
+- Keep `.graphifyignore` current as vendored and generated directories appear.
+
+## Knowledge store (section 10)
+
+Name the store you actually run and its commands here — `wippy-kb`, `mempalace`,
+`iknow` or whatever the team uses. The protocol below is the part that does not
+change with the tool.
+
+- How the store is partitioned, and which partition this project writes to.
+- Which partitions the agent may write and which are owned by an indexer. If a
+  code index is generated, the agent writes findings only and never the index.
+- **Before changing a module:** search the store for prior decisions and
+  dependencies. A miss is a result too — record it so the next session does not
+  repeat the search.
+- **After a decision, a bug fix or a non-obvious workaround:** check for a
+  duplicate first, then write it to the matching partition.
+- **Temporal facts** carry a valid-from. When one changes, invalidate the old fact
+  instead of deleting it, so a wrong earlier answer stays explainable.
+- Name the read and write commands explicitly. An agent told to "use the knowledge
+  base" without them will not use it.
+
+## Communication language (section 3)
+
+- Code, comments, commit messages, PR descriptions, technical docs: **English**.
+- Chat replies and notes written for the user: in the user's language.
+- Style: semi-casual, no formal C2 vocabulary, no literary flourishes, no em dashes.
+  See the `english-writing-style` skill.
+
+## Comment hygiene (section 3)
+
+Grep the diff for these and rewrite in place when the fix is mechanical:
+
+- **Internal tracker IDs** — `\b(<YOUR-PREFIXES>)-[0-9]+\b` anywhere in code,
+  comments, identifiers, lint-disable rationales or YAML descriptions. Keep the
+  technical content, drop the tracker reference. Tracker IDs belong in commits and
+  PR bodies, never in checked-in source.
+- **Plan and spec references** — `Plan sect`, `Plan AC`, `AC #N`, `per plan`,
+  `see plan`, `docs/plans/...`, `be-plan.md`, `fe-plan.md`. Same treatment.
+- **Absolute or per-user paths** — `/home/<user>/`, `/Users/`, `C:\`, `~/` inside
+  code, comments, config literals or string defaults. Use project-relative paths or
+  env vars. Allowed in setup documentation and in the audit-rules files themselves.
+- **Allowed and encouraged** — pointers to real files in the same repo. They survive
+  refactors and carry their own discoverability.
+
+Only mark `OPEN` when a comment loses its meaning without the tracker context.
+
+## Naming gotchas
+
+Names that must not be renamed without a migration, and any historical naming still
+present in fixtures that new code must not copy. Where both an old and a new name are
+in play, say which one new code uses and whether allow-lists must accept both.
+
+## Tests (section 8)
+
+- Each project has its own runner. Do not run the full suite blindly on a large repo —
+  use filters or per-module commands, and list them.
+- New code means new tests. Where historical coverage is near zero, raise the floor in
+  the areas you touch; do not blanket-rewrite untested code inside a refactor.
+
+## Verification and evidence (section 8)
+
+> Keep this section even if you write nothing else. It is the one that stops the whole
+> setup reporting success it has not earned.
+
+**A green signal is not evidence until it has been shown it can go red.** A suite that
+reports PASSED without running is indistinguishable from a suite that ran and passed, and
+every downstream check inherits that lie.
+
+The mechanisms are ordinary and easy to hit:
+
+- a suite reporting `PASSED` with **zero cases actually executed**
+- a nested test block that silently never runs
+- a linter reporting green on a method that does not exist in the pinned CI configuration
+- a job that skips its real work and still exits zero
+
+None of these fail loudly. All of them look exactly like success.
+
+**The canary rule.** Before a green result is allowed to count as evidence, make it go red
+on purpose:
+
+```
+# put a deliberately failing assertion into exactly one case
+assert_equal(result, "CANARY-MUST-FAIL")
+```
+
+Run the suite. If it still reports `PASSED`, it did not execute — the green was never real.
+Remove the canary and re-run only once you have seen it go red.
+
+Fill in for this project:
+
+- The exact canary line per stack and test runner.
+- Which suites have ever produced a false green here, and what the cause was.
+- Whether case counts are printed. A runner that reports pass/fail without a **count of
+  executed cases** cannot be trusted at a glance, and that is worth a rule of its own.
+- Which checks run in CI versus only locally, and whether the CI config is pinned to the
+  same versions people run against.
+
+**Make verification blocking, not advisory.** If the only thing pointing at the
+verification step is a reminder, it is optional in practice. State plainly which steps must
+have run before work counts as done, and prefer a mechanism that refuses to finish over one
+that suggests. Record here which of your gates are enforced and which are merely advised —
+an honest list of what is only advised is more useful than a list that implies enforcement
+it does not have.
+
+## Pre-shipping checks (section 10)
+
+Run only what is relevant to the changed stacks.
+
+- **`<stack>`**: `<lint>`, `<test>`, `<build>` — plus any gotcha
+  (e.g. a lint target that also runs dependency tidying, so a new dependency must be
+  tidied before it passes; or a suite that only covers part of the tree and has a
+  separate integration target).
