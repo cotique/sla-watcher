@@ -7,6 +7,10 @@ than calendar hours.
 The service is deterministic. There is no model inside it, deliberately: a scheduling question
 should never begin by ruling out a model.
 
+**This repository is a testbed**, for two things at once: the `.claude/` agent-tooling layer
+(rules, hooks, audit) running against real work, and Quartz's clustering behaviour on a
+MongoDB job store under real failure, not a tutorial.
+
 **In progress.** What is here: the scheduler and its clustering behaviour, measured under
 three kinds of instance failure; the working-hours arithmetic; a tracker client with its
 paging and throttle handling; and a watchdog for executions that never finish.
