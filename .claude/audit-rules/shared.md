@@ -145,11 +145,14 @@ firing.
 - [predicted] [judgment] **One deliverable per branch.** A stage of a plan is a branch.
 - [predicted] [mechanical] **Delete the branch on both sides once it is merged.** A merged branch
   left on the remote reads as work in flight.
-- [observed] [mechanical] **The server cannot refuse a push to `master` here.** Branch protection
-  and rulesets are gated by plan on a private repository, and this one stays private: three
-  endpoints answer `Upgrade to GitHub Pro or make this repository public`, with a token that
-  carries the `repo` scope. So the refusal is local, in `.githooks/pre-push`, enabled with
-  `core.hooksPath`. That is local configuration, so every clone turns it on once for itself.
+- [observed] [mechanical] **`master` is protected server-side, and only because this repository
+  is public.** Branch protection and rulesets are gated by plan on a private repo, and this one
+  was private at first: three endpoints answered `Upgrade to GitHub Pro or make this repository
+  public` with a token that already carried the `repo` scope. Going public enabled it —
+  force-push and deletion disabled, the `build` check required, `enforce_admins` on. Local
+  configuration still matters alongside it: `.githooks/pre-push`, enabled with `core.hooksPath`,
+  catches the same mistake before the round-trip to the server, so every clone turns it on once
+  for itself.
 - [observed] [mechanical] **The same hook refuses a tag push.** A tag publishes, so it is created
   deliberately rather than swept along with a branch. Nothing is released from this repository
   yet; the store repository is where that matters, and where a refused tag push would be felt.

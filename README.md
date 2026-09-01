@@ -73,6 +73,9 @@ dotnet format --verify-no-changes
 .claude/style.sh              # the style rules a compiler does not enforce
 ```
 
+GitHub's secret scanning and push protection are also on, free on a public repo: a credential
+matching a known pattern is refused at push time, not found afterwards in the history.
+
 ## The failure bench
 
 Two containers against one database, for the failure behaviour that a single process cannot
@@ -93,20 +96,21 @@ What has been measured on it, and what each failure costs, is in
 names carry the kind: `feat/`, `fix/`, `chore/`, `docs/`, `plan/`, and `store/2.2.0` shaped
 names for taking a new version of the job store.
 
-A push to `master` is refused locally by `.githooks/pre-push`, enabled with:
+GitHub enforces this server-side: `master` is protected, force-push and deletion are disabled,
+the `build` status check must be green before a merge, and the protection applies to the repo
+owner as well (`enforce_admins`). That protection is only available because this repository is
+public; on a private repo it is gated by plan, and until this one went public that gate was
+closed.
+
+A push to `master` is also refused locally by `.githooks/pre-push`, enabled with:
 
 ```bash
 git config core.hooksPath .githooks
 ```
 
-Run that once per clone. It is local configuration and cannot be inherited.
-
-**It is local because the server cannot do it.** Branch protection and rulesets are gated by
-plan on a private repository and this one stays private, so a failing CI run does **not** block
-a merge either. That is an accepted risk, not an oversight: it is written down here so the next
-person does not assume a gate exists.
-
-The same hook refuses a tag push, because a tag publishes.
+Run that once per clone. It is local configuration and cannot be inherited, and it catches the
+same mistake before the round-trip to GitHub, but the server-side rule above is the one that
+actually holds. The same hook refuses a tag push, because a tag publishes.
 
 ## Where it deploys
 
