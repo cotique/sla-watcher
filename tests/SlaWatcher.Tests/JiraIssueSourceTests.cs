@@ -14,37 +14,40 @@ using SlaWatcher.Jira;
 public class JiraIssueSourceTests
 {
     [Fact]
-    public async Task PagesUntilTheReportedTotalIsReached()
+    public async Task PagesUntilIsLastIsTrue()
     {
+        // No total on this endpoint: pagination is cursor-based, on isLast and nextPageToken
+        // alone.
         var handler = new ScriptedHandler(
-            SearchPage(total: 3, startAt: 0, keys: ["DOUBLE-1", "DOUBLE-2"]),
-            SearchPage(total: 3, startAt: 2, keys: ["DOUBLE-3"]));
+            SearchPage(["DOUBLE-1", "DOUBLE-2"], isLast: false, nextPageToken: "page-2"),
+            SearchPage(["DOUBLE-3"], isLast: true));
 
         var keys = await Source(handler).FindIssueKeysAsync(Window.From, Window.To, default);
 
         Assert.Equal(["DOUBLE-1", "DOUBLE-2", "DOUBLE-3"], keys);
         Assert.Equal(2, handler.Requests.Count);
+        Assert.Contains("nextPageToken=page-2", handler.Requests[1].RequestUri!.Query);
     }
 
     [Fact]
-    public async Task AnEmptyPageEndsTheWalkEvenWhenTheTotalDisagrees()
+    public async Task IsLastEndsTheWalkEvenOnAFullLookingPage()
     {
-        // A server that reports more than it will ever hand over. Trusting the total alone
-        // loops here forever.
-        var handler = new ScriptedHandler(
-            SearchPage(total: 99, startAt: 0, keys: ["DOUBLE-1"]),
-            SearchPage(total: 99, startAt: 1, keys: []));
+        // A last page is not identified by being short. A server that fills the page and
+        // still sets isLast: true has to be believed, not second-guessed by page size.
+        var handler = new ScriptedHandler(SearchPage(["DOUBLE-1", "DOUBLE-2"], isLast: true));
 
         var keys = await Source(handler).FindIssueKeysAsync(Window.From, Window.To, default);
 
-        Assert.Equal(["DOUBLE-1"], keys);
+        Assert.Equal(["DOUBLE-1", "DOUBLE-2"], keys);
+        Assert.Single(handler.Requests);
     }
 
     [Fact]
     public async Task PagingStopsAtTheCeilingRatherThanHanging()
     {
-        // Always one more page, never the last.
-        var handler = new ScriptedHandler(_ => SearchPage(total: 1000, startAt: 0, keys: ["DOUBLE-1"]));
+        // isLast never true, a fresh token every time: the ceiling is what stops it.
+        var handler = new ScriptedHandler(
+            count => SearchPage(["DOUBLE-1"], isLast: false, nextPageToken: $"page-{count}"));
 
         var source = Source(handler, maxPages: 4);
 
@@ -60,7 +63,7 @@ public class JiraIssueSourceTests
     {
         var handler = new ScriptedHandler(
             Throttled(retryAfterSeconds: 7),
-            SearchPage(total: 1, startAt: 0, keys: ["DOUBLE-1"]));
+            SearchPage(["DOUBLE-1"], isLast: true));
 
         var waits = new List<TimeSpan>();
         var keys = await Source(handler, delay: waits.Add).FindIssueKeysAsync(Window.From, Window.To, default);
@@ -76,7 +79,7 @@ public class JiraIssueSourceTests
         // in configuration rather than buried as a literal.
         var handler = new ScriptedHandler(
             new HttpResponseMessage(HttpStatusCode.TooManyRequests),
-            SearchPage(total: 1, startAt: 0, keys: ["DOUBLE-1"]));
+            SearchPage(["DOUBLE-1"], isLast: true));
 
         var waits = new List<TimeSpan>();
         await Source(handler, waits.Add, fallbackRetryAfterSeconds: 11)
@@ -152,11 +155,14 @@ public class JiraIssueSourceTests
     [Fact]
     public async Task TheSearchWindowIsHalfOpenAndOrdered()
     {
-        var handler = new ScriptedHandler(SearchPage(total: 0, startAt: 0, keys: []));
+        var handler = new ScriptedHandler(SearchPage([], isLast: true));
 
         await Source(handler).FindIssueKeysAsync(Window.From, Window.To, default);
 
-        var query = Uri.UnescapeDataString(handler.Requests[0].RequestUri!.Query);
+        var request = handler.Requests[0].RequestUri!;
+        Assert.Equal("/rest/api/3/search/jql", request.AbsolutePath);
+
+        var query = Uri.UnescapeDataString(request.Query);
         Assert.Contains("updated >= \"2026-08-01 00:00\"", query);
         Assert.Contains("updated < \"2026-09-01 00:00\"", query);
         Assert.Contains("ORDER BY updated ASC", query);
@@ -196,11 +202,12 @@ public class JiraIssueSourceTests
             });
     }
 
-    private static HttpResponseMessage SearchPage(int total, int startAt, string[] keys)
+    private static HttpResponseMessage SearchPage(string[] keys, bool isLast, string? nextPageToken = null)
     {
         var issues = string.Join(",", keys.Select(k => $$"""{"key":"{{k}}"}"""));
+        var token = nextPageToken is not null ? $",\"nextPageToken\":\"{nextPageToken}\"" : "";
         return Json($$"""
-            {"startAt":{{startAt}},"maxResults":50,"total":{{total}},"issues":[{{issues}}]}
+            {"issues":[{{issues}}],"isLast":{{(isLast ? "true" : "false")}}{{token}}}
             """);
     }
 
