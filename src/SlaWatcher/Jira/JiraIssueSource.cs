@@ -8,10 +8,13 @@ using Microsoft.Extensions.Options;
 /// Reads the tracker over HTTP.
 ///
 /// <para>
-/// The JSON this parses is <b>an assumption until the contract test runs</b>. It is not
-/// recorded anywhere in this repository as a verified fact, and the double agrees with it by
-/// construction, so a green suite here says the client and the double share a belief. What
-/// promotes that belief to knowledge is one test against the real instance.
+/// Checked against a real instance. The changelog endpoint matches what this reads, including
+/// its offset paging across a genuinely multi-page history. The search endpoint did not:
+/// <c>rest/api/3/search</c> has been retired, and its replacement, <c>rest/api/3/search/jql</c>,
+/// returns no <c>total</c> at all and silently ignores <c>startAt</c> — a client built on
+/// offset paging would refetch the first page forever rather than advance. Search here now
+/// paginates on <c>nextPageToken</c> and <c>isLast</c> instead, which is the part of this file
+/// that was wrong until it was checked.
 /// </para>
 /// </summary>
 public sealed class JiraIssueSource : IIssueSource
@@ -53,34 +56,38 @@ public sealed class JiraIssueSource : IIssueSource
         var jql = $"{_options.Jql} AND updated >= \"{Jql(fromUtc)}\" AND updated < \"{Jql(toUtc)}\" ORDER BY updated ASC";
 
         var keys = new List<string>();
-        var startAt = 0;
+        string? nextPageToken = null;
 
         for (var page = FirstPage; page <= _options.MaxPages; page++)
         {
-            var url = $"rest/api/3/search?jql={Uri.EscapeDataString(jql)}&startAt={startAt}&maxResults={_options.PageSize}&fields=key";
+            var url = $"rest/api/3/search/jql?jql={Uri.EscapeDataString(jql)}&maxResults={_options.PageSize}&fields=key";
+            if (nextPageToken is not null)
+            {
+                url += $"&nextPageToken={Uri.EscapeDataString(nextPageToken)}";
+            }
 
             using var document = await GetAsync(url, cancellationToken).ConfigureAwait(false);
             var root = document.RootElement;
 
-            var issues = root.GetProperty("issues");
-            foreach (var issue in issues.EnumerateArray())
+            foreach (var issue in root.GetProperty("issues").EnumerateArray())
             {
                 keys.Add(issue.GetProperty("key").GetString()!);
             }
 
-            startAt += issues.GetArrayLength();
-
-            // An empty page ends the walk even when the reported total disagrees. Trusting
-            // total alone loops forever against a server that reports one it cannot fill.
-            if (issues.GetArrayLength() == 0 || startAt >= root.GetProperty("total").GetInt32())
+            // isLast is the only stop signal this endpoint gives. There is no total to compare
+            // a running count against, and a full-looking page is not evidence that another
+            // one follows.
+            if (root.GetProperty("isLast").GetBoolean())
             {
                 return keys;
             }
 
+            nextPageToken = root.GetProperty("nextPageToken").GetString();
+
             if (page == _options.MaxPages)
             {
                 throw new InvalidOperationException(
-                    $"Search stopped at the page ceiling of {_options.MaxPages} with {keys.Count} issues collected. Either the window is far larger than intended or the server is paging without end.");
+                    $"Search stopped at the page ceiling of {_options.MaxPages} with {keys.Count} issues collected. Either the window is far larger than intended or the server never reports isLast.");
             }
         }
 

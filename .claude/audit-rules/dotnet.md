@@ -72,6 +72,12 @@ Loaded when the change touches `**/*.cs`, `*.csproj` or `*.sln`.
   infinite call inside a scheduled job holds its trigger forever.
 - [predicted] [judgment] Paging loops have a hard iteration cap. A server that keeps returning a next
   page — the double included — turns an unbounded loop into a hang.
+- [observed] [judgment] **A fixture agreeing with the client proves nothing about the real API.**
+  Checked live: `rest/api/3/search` had been retired for `rest/api/3/search/jql`, which drops
+  `total` entirely and silently ignores `startAt`. A client built on offset paging against it
+  would refetch page one forever rather than advance. Pagination is on `nextPageToken` and
+  `isLast` now, and that is the one part of the tracker client verified against a real
+  instance rather than assumed.
 
 ## Async (section 3)
 
