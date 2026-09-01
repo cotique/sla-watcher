@@ -16,6 +16,8 @@ instances, and measures how long a ticket sat in a status **in working hours**.
   `[Trait("Category", "Integration")]` and run against the locally installed Mongo on 27117,
   which is where the bench runs too; CI never sees them.
 
+This repository is a testbed; see the README for what it is testing.
+
 ## Why the service has no model in it
 
 It is deliberately boring. A model inside the product would make every "why did this fire
